@@ -53,9 +53,7 @@ public class Main {
 		if (published != null) {
 			fields = published.getClass().getDeclaredFields();
 			Collections.addAll(listOfFields, published.getClass().getDeclaredFields());
-			listOfFields.forEach(field -> {
-				field.setAccessible(true);
-			});
+			listOfFields.forEach(field -> field.setAccessible(true));
 		} else if (newObject != null) {
 			fields = newObject.getClass().getDeclaredFields();
 			Collections.addAll(listOfFields, newObject.getClass().getDeclaredFields());
@@ -81,15 +79,12 @@ public class Main {
 				if (newList != null && publishedList != null) {
 					if (isPrimitive(field.getGenericType().getTypeName())) { // IS LIST OF PRIMITIVES?
 						int max = newList.size() > publishedList.size() ? newList.size() : publishedList.size();
-						Diffs child = new Diffs("Line 81: " + field.getName());
+						Diffs child = new Diffs(field.getName());
 						for(int i=0; i< max; i++) {
-							if (publishedList.get(i) != null && newList.get(i) != null) { // Check for difference
-								if(!publishedList.get(i).equals(newList.get(i))) {
-									child.addChild(new Diffs(field.getName(), publishedList.get(i), newList.get(i), MODIFIED)); 
-								}
+							if (publishedList.get(i) != null && newList.get(i) != null && !publishedList.get(i).equals(newList.get(i))) {
+								child.addChild(new Diffs(field.getName(), publishedList.get(i), newList.get(i), MODIFIED)); 
 							} else if (publishedList.get(i) != null) {// value has been deleted
 								child.addChild(new Diffs(field.getName(), publishedList.get(i), null, DELETED)); 
-								
 							} else if (newList.get(i) != null) { // New value exists 
 								child.addChild(new Diffs(field.getName(),null, newList.get(i), NEW)); 
 							}
@@ -99,28 +94,27 @@ public class Main {
 						}
 					} else { // ELSE (IS NOT LIST OF PRIMITIVES)
 						int max = newList.size() > publishedList.size() ? newList.size() : publishedList.size();
-						Diffs child = parent.getNewChild(field.getName());
+						Diffs child = null;
 						for (int i = 0; i < max; i++) {
-							if (i > 0 ) {
-								child = child.getNewChild("Line 102: " + field.getName());
-							}
+							// 1st time get from parent, for all the other times get from child
+							child = child == null ? parent.getNewChild(field.getName()) : child.getNewChild(field.getName());
 							Object oldList = publishedList.size() > i ? publishedList.get(i) : null;
 							Object newList2 = newList.size() > i ? newList.get(i) : null;
 							traverse(oldList, newList2, child);
 						}
 					}
 				} else if (newList != null) {
-					Diffs child = new Diffs("Line 112: " + field.getName());
+					Diffs child = new Diffs(field.getName());
 					newList.forEach(item -> child.addChild(new Diffs(field.getDeclaringClass().getSimpleName(), null, item, NEW)));
 					parent.addChild(child);
 				} else if (publishedList != null) {
-					Diffs child = new Diffs("Line 119: " + field.getName());
+					Diffs child = new Diffs(field.getName());
 					publishedList.forEach(item -> child.addChild(new Diffs(field.getDeclaringClass().getSimpleName(), item, null , DELETED)));
 					parent.addChild(child);
 				} 	
 			} else {
-				Object existingValue = published != null ? PropertyUtils.getProperty(published, field.getName()) : null;
-				Object newValue = newObject != null ? PropertyUtils.getProperty(newObject, field.getName()) : null;
+				Object existingValue = published != null ? PropertyUtils.getSimpleProperty(published, field.getName()) : null;
+				Object newValue = newObject != null ? PropertyUtils.getSimpleProperty(newObject, field.getName()) : null;
 
 				if (existingValue != null) {
 					if (!isPrimitive(existingValue.getClass().getName())) {
@@ -129,13 +123,13 @@ public class Main {
 						if(!existingValue.equals(newValue)) {
 							parent.addChild(new Diffs(field.getName(), existingValue, newValue, MODIFIED)); 
 						}
-					} else {// value has been deleted
+					} else { 
 						parent.addChild(new Diffs(field.getName(), existingValue, null, DELETED)); 
 					} 
-				} else if (newValue != null) { // New value exists 
+				} else if (newValue != null) {
 					if (isPrimitive(newValue.getClass().getName())) {
 						parent.addChild(new Diffs(field.getName(), null, newValue, NEW));
-					} else  { // Call self
+					} else  { 
 						traverse(existingValue /* is null */, newValue, parent.getNewChild(field.getName()));
 					} 
 				} 

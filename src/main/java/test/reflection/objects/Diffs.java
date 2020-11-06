@@ -73,7 +73,7 @@ public class Diffs {
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append(String.format(TO_STRING, name, currentValue, newValue, getStatus(status))); // start with self
+		builder.append(String.format(TO_STRING, name, currentValue, newValue, getStatus(status)));
 		builder.append("\n");
 		children.forEach(child -> {
 			builder.append(child.toString());
@@ -97,10 +97,6 @@ public class Diffs {
 	}
 	
 	private Object getStatus(STATUS status) {
-		if (status != null) {
-			return status.toString();
-		} else {
-			return "";
-		}
+		return status != null ? status.toString() : "";
 	}
 }

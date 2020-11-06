@@ -4,9 +4,9 @@ import java.util.List;
 
 public class AFA {
 
-	private String id; // <--diff
-	private List<Inner> myList; // <-- lista apo diff 
-	private boolean published; // <-- 2o diff
+	private String id;
+	private List<Inner> myList;
+	private boolean published;
 
 	public AFA(String text, List<Inner> myList) {
 		this.id = text;
