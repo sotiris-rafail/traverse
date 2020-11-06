@@ -14,12 +14,12 @@ public class Main {
 		List<Inner> inners = new ArrayList<>();
 		inners.add(new Inner("INNER 1", new DepperInner("deep1", 2, false), "InnerString1"));
 		inners.add(new Inner("INNER 2", new DepperInner("deep2", 5, true), "InnerString2", "InnerString3"));
-		inners.add(new Inner("INNER 3", new DepperInner("deep3", 1, true), "Haritos", "Swtos"));
+		//inners.add(new Inner("INNER 3", new DepperInner("deep3", 1, true), "Haritos", "Swtos"));
 		
 		List<Inner> inners2 = new ArrayList<>();
 		inners2.add(new Inner("INNER 1", new DepperInner("deep1", 3, false), "InnerString1"));
 		inners2.add(new Inner("INNER 2", new DepperInner("deep2", 5, true), "InnerString2", "InnerString5"));
-		// inners2.add(new Inner("INNER 3", new DepperInner("deep3", 1, true), "InnerString2", "InnerString5"));
+		inners2.add(new Inner("INNER 3", new DepperInner("deep3", 1, true), "InnerString2", "InnerString5"));
 
 		AFA publishedAfa = new AFA("PUBLISHED", inners);
 		publishedAfa.setPublished(true);
@@ -139,13 +139,11 @@ public class Main {
 				} 
 			}
 		}
-		if(depth == 1) {
-		    addMissingFields(diffs, depth, published != null ? published.getClass().getSimpleName() : newObject != null ? newObject.getClass().getSimpleName() : published.getClass().getSimpleName());
-		}
+		if(depth == 1) { addMissingFields(diffs, depth, published != null ? published.getClass().getSimpleName() : newObject.getClass().getSimpleName()); }
 	}
 
-	public static boolean isPrimitive(String name) {
-		return name.contains("java.lang") ? true : false;
+	private static boolean isPrimitive(String name) {
+		return name.contains("java.lang");
 	}
 
 	private static void addMissingFields(List<Diffs> diffs, int depth, String clazz) {
