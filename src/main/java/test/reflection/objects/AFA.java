@@ -1,24 +1,24 @@
-package tst.reflection.sotos;
+package test.reflection.objects;
 
 import java.util.List;
 
 public class AFA {
 
-	private String text;
+	private String id;
 	private List<Inner> myList;
 	private boolean published;
 
 	public AFA(String text, List<Inner> myList) {
-		this.text = text;
+		this.id = text;
 		this.myList = myList;
 	}
 
-	public String getText() {
-		return text;
+	public String getId() {
+		return id;
 	}
 
-	public void setText(String text) {
-		this.text = text;
+	public void setId(String id) {
+		this.id = id;
 	}
 
 	public List<Inner> getMyList() {
@@ -36,6 +36,4 @@ public class AFA {
 	public void setPublished(boolean published) {
 		this.published = published;
 	}
-
-
 }
