@@ -1,22 +1,28 @@
 package test.reflection;
 
-import static test.reflection.objects.Diffs.STATUS.DELETED;
-import static test.reflection.objects.Diffs.STATUS.MODIFIED;
-import static test.reflection.objects.Diffs.STATUS.NEW;
+import static test.reflection.result.Diffs.STATUS.*;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.beanutils.PropertyUtils;
 
 import test.reflection.objects.AFA;
 import test.reflection.objects.DepperInner;
-import test.reflection.objects.Diffs;
 import test.reflection.objects.Inner;
+import test.reflection.result.Diffs;
 
+/**
+ * Find differences between any two objects.
+ * 
+ * @author Sotiris Moschopoulos
+ * @author Haritos Hatzidimitriou
+ * 
+ * @since  5/11/2020
+ */
 public class Main {
+	
 	public static void main(String[] args) {
 		
 		List<Inner> inners = new ArrayList<>();
@@ -32,7 +38,7 @@ public class Main {
 		AFA publishedAfa = new AFA("PUBLISHED", inners);
 		publishedAfa.setPublished(true);
 		AFA newAfa = new AFA("NEW", inners2);
-		newAfa.setPublished(true);
+		newAfa.setPublished(false);
 		Diffs root;
 
 		try {
@@ -45,94 +51,84 @@ public class Main {
 		}
 	}
 
-	public static void traverse(Object published, Object newObject, Diffs parent) throws Exception {
+	public static void traverse(final Object oldObject, final Object newObject, final Diffs parent) throws Exception {
 
-		Field[] fields;
-		List<Field> listOfFields = new ArrayList<>();
-
-		if (published != null) {
-			fields = published.getClass().getDeclaredFields();
-			Collections.addAll(listOfFields, published.getClass().getDeclaredFields());
-			listOfFields.forEach(field -> field.setAccessible(true));
-		} else if (newObject != null) {
-			fields = newObject.getClass().getDeclaredFields();
-			Collections.addAll(listOfFields, newObject.getClass().getDeclaredFields());
-			listOfFields.forEach(field -> field.setAccessible(true));
-		} else {
+		if (oldObject == null && newObject == null) {
 			return;
 		}
-	
-		Object objectToTest = published != null ? published : newObject;
 		
+		List<?> newList, oldList;
+		Field[] fields = oldObject != null ? oldObject.getClass().getDeclaredFields() : newObject.getClass().getDeclaredFields();
+		Object objectToTest = oldObject != null ? oldObject : newObject;
+		boolean objectIsList, bothListsExist, bothValuesExist, isPrimitiveType;
+
 		for (Field field : fields) { 
-			if (field.getName().equalsIgnoreCase("serialVersionUID") ||
-				field.getName().equalsIgnoreCase("uuid") || 
+			if (field.getName().equalsIgnoreCase("serialVersionUID") || field.getName().equalsIgnoreCase("uuid") || 
 				field.getName().equalsIgnoreCase("logger")) {
 				continue;
 			} 
 			field.setAccessible(true);
+			objectIsList = field.get(objectToTest) instanceof List;
 			
-			if (field.get(objectToTest) instanceof List) {
-				List<?> newList = newObject !=null ? (List<?>) field.get(newObject) : null;
-				List<?> publishedList = published != null ? (List<?>) field.get(published) : null;
-
-				if (newList != null && publishedList != null) {
-					if (isPrimitive(field.getGenericType().getTypeName())) { // IS LIST OF PRIMITIVES?
-						int max = newList.size() > publishedList.size() ? newList.size() : publishedList.size();
-						Diffs child = new Diffs(field.getName());
-						for(int i=0; i< max; i++) {
-							if (publishedList.get(i) != null && newList.get(i) != null && !publishedList.get(i).equals(newList.get(i))) {
-								child.addChild(new Diffs(field.getName(), publishedList.get(i), newList.get(i), MODIFIED)); 
-							} else if (publishedList.get(i) != null) {// value has been deleted
-								child.addChild(new Diffs(field.getName(), publishedList.get(i), null, DELETED)); 
-							} else if (newList.get(i) != null) { // New value exists 
-								child.addChild(new Diffs(field.getName(),null, newList.get(i), NEW)); 
-							}
-						}
-						if (child.getChildren().size() > 0) { // ONLY ADD IF THERE ARE ACTUAL CHANGES
-							parent.addChild(child);
-						}
-					} else { // ELSE (IS NOT LIST OF PRIMITIVES)
-						int max = newList.size() > publishedList.size() ? newList.size() : publishedList.size();
-						Diffs child = null;
-						for (int i = 0; i < max; i++) {
-							// 1st time get from parent, for all the other times get from child
-							child = child == null ? parent.getNewChild(field.getName()) : child.getNewChild(field.getName());
-							Object oldList = publishedList.size() > i ? publishedList.get(i) : null;
-							Object newList2 = newList.size() > i ? newList.get(i) : null;
-							traverse(oldList, newList2, child);
+			if (objectIsList) {
+				final Diffs child = new Diffs(field.getName());
+				Object oldItem, newItem;
+				newList = newObject !=null ? (List<?>) field.get(newObject) : null;
+				oldList = oldObject != null ? (List<?>) field.get(oldObject) : null;
+				bothListsExist = (newList != null && oldList != null) ? true : false;
+				isPrimitiveType = isPrimitive(field.getGenericType().getTypeName());
+				
+				if (bothListsExist && isPrimitiveType) { 
+					int max = newList.size() > oldList.size() ? newList.size() : oldList.size();
+					for (int i=0; i< max; i++) {
+						oldItem = oldList.get(i);
+						newItem = newList.get(i);
+						if (oldItem != null && newItem != null && !oldItem.equals(newItem)) {
+							child.addChild(new Diffs(field.getName(), oldItem, newItem, MODIFIED)); 
+						} else if (oldItem != null && newItem == null) {
+							child.addChild(new Diffs(field.getName(), oldItem, newItem, DELETED)); 
+						} else if (newItem != null && oldItem == null) { 
+							child.addChild(new Diffs(field.getName(), oldItem, newItem, NEW)); 
 						}
 					}
+					if (child.hasChildren()) { // Only add if there are changes
+						parent.addChild(child);
+					}
+				} else if (bothListsExist) {
+					int max = newList.size() > oldList.size() ? newList.size() : oldList.size();
+					Object old2, new2;
+					Diffs child2 = null;
+					for (int i = 0; i < max; i++) {
+						// 1st time get from parent, for all the other times get from child
+						child2 = (i==0) ? parent.getNewChild(field.getName()) : child2.getNewChild(field.getName());
+						old2 = oldList.size() > i ? oldList.get(i) : null;
+						new2 = newList.size() > i ? newList.get(i) : null;
+						traverse(old2, new2, child2);
+					}
+				} else if (oldList != null) {
+					oldList.forEach(item -> child.addChild(new Diffs(field.getDeclaringClass().getSimpleName(), item, null , DELETED)));
+					parent.addChild(child);
 				} else if (newList != null) {
-					Diffs child = new Diffs(field.getName());
 					newList.forEach(item -> child.addChild(new Diffs(field.getDeclaringClass().getSimpleName(), null, item, NEW)));
 					parent.addChild(child);
-				} else if (publishedList != null) {
-					Diffs child = new Diffs(field.getName());
-					publishedList.forEach(item -> child.addChild(new Diffs(field.getDeclaringClass().getSimpleName(), item, null , DELETED)));
-					parent.addChild(child);
 				} 	
-			} else {
-				Object existingValue = published != null ? PropertyUtils.getSimpleProperty(published, field.getName()) : null;
+			} else { // not a list
+				Object existingValue = oldObject != null ? PropertyUtils.getSimpleProperty(oldObject, field.getName()) : null;
 				Object newValue = newObject != null ? PropertyUtils.getSimpleProperty(newObject, field.getName()) : null;
 
-				if (existingValue != null) {
-					if (!isPrimitive(existingValue.getClass().getName())) {
-						traverse(existingValue, newValue /* is null */, parent.getNewChild(field.getName()));
-					} else if (newValue != null) { 
-						if(!existingValue.equals(newValue)) {
-							parent.addChild(new Diffs(field.getName(), existingValue, newValue, MODIFIED)); 
-						}
-					} else { 
-						parent.addChild(new Diffs(field.getName(), existingValue, null, DELETED)); 
-					} 
-				} else if (newValue != null) {
-					if (isPrimitive(newValue.getClass().getName())) {
-						parent.addChild(new Diffs(field.getName(), null, newValue, NEW));
-					} else  { 
-						traverse(existingValue /* is null */, newValue, parent.getNewChild(field.getName()));
-					} 
-				} 
+				bothValuesExist = (existingValue != null) && (newValue != null);
+				isPrimitiveType = (existingValue != null) ? isPrimitive(existingValue.getClass().getName()) :
+					                                        isPrimitive(newValue.getClass().getName());
+				
+				if (!isPrimitiveType) {
+					traverse(existingValue, newValue, parent.getNewChild(field.getName()));
+				} else if (bothValuesExist && !existingValue.equals(newValue)) {
+					parent.addChild(new Diffs(field.getName(), existingValue, newValue, MODIFIED));
+				} else if (existingValue != null && newValue == null) {
+					parent.addChild(new Diffs(field.getName(), existingValue, newValue, DELETED)); 
+				} else if (newValue != null && existingValue == null){ 
+					parent.addChild(new Diffs(field.getName(), existingValue, newValue, NEW));
+				}  
 			}
 		}
 	}
