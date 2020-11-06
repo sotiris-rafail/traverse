@@ -1,4 +1,4 @@
-package tst.reflection.sotos;
+package test.reflection.objects;
 
 public class DepperInner {
 
