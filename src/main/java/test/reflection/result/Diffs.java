@@ -7,7 +7,7 @@ public class Diffs {
 
 	public enum STATUS { NEW, DELETED, MODIFIED, PARENT_DIFF }  
 	
-	private static final String TO_STRING = "{ name = %s, currentValue = %s, newValue = %s, Status = %s }";
+	private static final String TO_STRING = "[ name = %s, currentValue = %s, newValue = %s, Status = %s ]";
 
 	private final String name;
 	private final List<Diffs> children = new ArrayList<>();
@@ -67,9 +67,13 @@ public class Diffs {
 	
 	@Override
 	public String toString() {
+		return this.toString("\t");
+	}
+	
+	private String toString(String tab) {
 		StringBuilder builder = new StringBuilder();
 		builder.append(String.format(TO_STRING, name, currentValue, newValue, status.toString()));
-		children.forEach(child -> builder.append("\n" + child.toString()));
+		children.forEach(child -> builder.append("\n"+ tab + child.toString("\t"+tab)));
 		return builder.toString();
 	}
 }
