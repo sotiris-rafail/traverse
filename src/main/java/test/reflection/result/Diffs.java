@@ -7,7 +7,10 @@ public class Diffs {
 
 	public enum STATUS { NEW, DELETED, MODIFIED, PARENT_DIFF }  
 	
-	private static final String TO_STRING = "[ name = %s, currentValue = %s, newValue = %s, Status = %s ]";
+	private static final String TO_STRING_PARENT = "[ %s ]";
+	private static final String TO_STRING_MODIFIED = "[ name = %s, Old Value = %s, New Value = %s, MODIFIED ]";
+	private static final String TO_STRING_DELETED = "[ name = %s, Old Value = %s, DELETED ]";
+	private static final String TO_STRING_NEW = "[ name = %s, newValue = %s, NEW ]";
 
 	private final String name;
 	private final List<Diffs> children = new ArrayList<>();
@@ -72,7 +75,15 @@ public class Diffs {
 	
 	private String toString(String tab) {
 		StringBuilder builder = new StringBuilder();
-		builder.append(String.format(TO_STRING, name, currentValue, newValue, status.toString()));
+		if (status == STATUS.PARENT_DIFF) {
+			builder.append(String.format(TO_STRING_PARENT, name));
+		} else if  (status == STATUS.MODIFIED) {
+			builder.append(String.format(TO_STRING_MODIFIED, name, currentValue, newValue));
+		} else if (status == STATUS.DELETED) {
+			builder.append(String.format(TO_STRING_DELETED, name, currentValue));
+		} else {
+			builder.append(String.format(TO_STRING_NEW, name,  newValue));
+		}
 		children.forEach(child -> builder.append("\n"+ tab + child.toString("\t"+tab)));
 		return builder.toString();
 	}

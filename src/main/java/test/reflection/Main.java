@@ -1,53 +1,53 @@
 package test.reflection;
 
-import static test.reflection.result.Diffs.STATUS.*;
+import static test.reflection.result.Diffs.STATUS.DELETED;
+import static test.reflection.result.Diffs.STATUS.MODIFIED;
+import static test.reflection.result.Diffs.STATUS.NEW;
 
+import java.beans.BeanInfo;
+import java.beans.IntrospectionException;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
-import org.apache.commons.beanutils.PropertyUtils;
-
-import test.reflection.objects.AFA;
-import test.reflection.objects.DepperInner;
-import test.reflection.objects.Inner;
+//import a.taxud.copis.dto.AfaType;
+//import a.taxud.copis.dto.ApplicantType;
+//import a.taxud.copis.dto.AttachmentType;
+//import a.taxud.copis.dto.AuthorisationProofType;
+//import a.taxud.copis.dto.RegisterAfa;
 import test.reflection.result.Diffs;
+import test.reflection.singleton.MethodsCache;
 
 /**
  * Find differences between any two objects.
  * 
- * @author Sotiris Moschopoulos
  * @author Haritos Hatzidimitriou
- * 
- * @since  5/11/2020
+ * @author Sotiris Moschopoulos
+ * @since 5/11/2020
  */
 public class Main {
-	
+
+	public static MethodsCache cache = MethodsCache.getInstance();
+
 	public static void main(String[] args) {
 		
-		List<Inner> inners = new ArrayList<>();
-		inners.add(new Inner("INNER 1", new DepperInner("deep1", 2, false), "InnerString1"));
-		inners.add(new Inner("INNER 2", new DepperInner("deep2", 5, true), "InnerString2", "InnerString3"));
-		inners.add(new Inner("INNER 3", new DepperInner("deep3", 1, true), "Haritos", "Swtos"));
-		
-		List<Inner> inners2 = new ArrayList<>();
-		inners2.add(new Inner("INNER 1", new DepperInner("deep1", 3, false), "InnerString1"));
-		inners2.add(new Inner("INNER 2", new DepperInner("deep2", 5, true), "InnerString2", "InnerString5"));
-		// inners2.add(new Inner("INNER 3", new DepperInner("deep3", 1, true), "InnerString2", "InnerString5"));
-
-		AFA publishedAfa = new AFA("PUBLISHED", inners);
-		publishedAfa.setPublished(true);
-		AFA newAfa = new AFA("NEW", inners2);
-		newAfa.setPublished(false);
-		Diffs root;
-
 		try {
-			root = new Diffs(publishedAfa.getClass().getSimpleName());
-			traverse(publishedAfa, newAfa, root);
+			Diffs root = new Diffs(oldAfa.getClass().getSimpleName());
+			traverse(oldAfa, newAfa, root);
 			System.out.println(root.toString());
 		} catch (Exception e) {
-			e.printStackTrace();
 			System.out.println("Exception: " + e.getMessage());
+			e.printStackTrace();
 		}
 	}
 
@@ -56,84 +56,158 @@ public class Main {
 		if (oldObject == null && newObject == null) {
 			return;
 		}
-		
-		List<?> newList, oldList;
-		Field[] fields = oldObject != null ? oldObject.getClass().getDeclaredFields() : newObject.getClass().getDeclaredFields();
-		Object objectToTest = oldObject != null ? oldObject : newObject;
-		boolean objectIsList, bothListsExist, bothValuesExist, isPrimitiveType;
 
-		for (Field field : fields) { 
-			if (field.getName().equalsIgnoreCase("serialVersionUID") || field.getName().equalsIgnoreCase("uuid") || 
-				field.getName().equalsIgnoreCase("logger")) {
+		Map.Entry<String, Method> entry;
+		Object oldValue, newValue;
+		List<?> oldList, newList;
+		boolean isList, bothObjectsExist, isPrimitiveType;
+		Map<String, Method> listOfGetters = getMethods(oldObject != null ? oldObject : newObject);
+		Iterator<Entry<String, Method>> iterator = listOfGetters.entrySet().iterator();
+
+		while(iterator.hasNext()) {
+			entry = iterator.next();
+			final String name = entry.getKey();
+			oldValue = oldObject != null ? entry.getValue().invoke(oldObject) : null;
+			newValue = newObject != null ? entry.getValue().invoke(newObject) : null;
+			
+			if (oldValue == null && newValue == null) {
 				continue;
 			} 
-			field.setAccessible(true);
-			objectIsList = field.get(objectToTest) instanceof List;
-			
-			if (objectIsList) {
-				final Diffs child = new Diffs(field.getName());
-				Object oldItem, newItem;
-				newList = newObject !=null ? (List<?>) field.get(newObject) : null;
-				oldList = oldObject != null ? (List<?>) field.get(oldObject) : null;
-				bothListsExist = (newList != null && oldList != null) ? true : false;
-				isPrimitiveType = isPrimitive(field.getGenericType().getTypeName());
+
+			bothObjectsExist = (oldValue != null) && (newValue != null);
+			isList = oldValue != null ? (oldValue instanceof List) : (newValue instanceof List);
+
+			if (isList) {
+				oldList = oldValue != null ? (List<?>) oldValue : null;
+				newList = newValue != null ? (List<?>) newValue : null;
 				
-				if (bothListsExist && isPrimitiveType) { 
+				if (listsAreEmpty(oldList, newList)) {
+					continue;
+				}
+				
+				final Diffs child = new Diffs(name);
+				isPrimitiveType = (oldList != null && oldList.size() > 0) ? isPrimitive(oldList.get(0)) : isPrimitive(newList.get(0));
+
+				if (bothObjectsExist && isPrimitiveType) {
 					int max = newList.size() > oldList.size() ? newList.size() : oldList.size();
-					for (int i=0; i< max; i++) {
-						oldItem = oldList.get(i);
-						newItem = newList.get(i);
-						if (oldItem != null && newItem != null && !oldItem.equals(newItem)) {
-							child.addChild(new Diffs(field.getName(), oldItem, newItem, MODIFIED)); 
-						} else if (oldItem != null && newItem == null) {
-							child.addChild(new Diffs(field.getName(), oldItem, newItem, DELETED)); 
-						} else if (newItem != null && oldItem == null) { 
-							child.addChild(new Diffs(field.getName(), oldItem, newItem, NEW)); 
-						}
+					for (int i = 0; i < max; i++) {
+						compareValues(name, oldList.get(i), newList.get(i), child);
 					}
 					if (child.hasChildren()) { // Only add if there are changes
 						parent.addChild(child);
 					}
-				} else if (bothListsExist) {
+				} else if (bothObjectsExist) {
 					int max = newList.size() > oldList.size() ? newList.size() : oldList.size();
-					Object old2, new2;
 					Diffs child2 = null;
 					for (int i = 0; i < max; i++) {
 						// 1st time get from parent, for all the other times get from child
-						child2 = (i==0) ? parent.getNewChild(field.getName()) : child2.getNewChild(field.getName());
-						old2 = oldList.size() > i ? oldList.get(i) : null;
-						new2 = newList.size() > i ? newList.get(i) : null;
-						traverse(old2, new2, child2);
+						child2 = (i == 0) ? parent.getNewChild(name) : child2.getNewChild(name);
+						oldValue = oldList.size() > i ? oldList.get(i) : null;
+						newValue = newList.size() > i ? newList.get(i) : null;
+						traverse(oldValue, newValue, child2);
 					}
-				} else if (oldList != null) {
-					oldList.forEach(item -> child.addChild(new Diffs(field.getDeclaringClass().getSimpleName(), item, null , DELETED)));
+				} else if (oldValue != null) {
+					oldList.forEach(item -> child.addChild(new Diffs(name, item, null, DELETED)));
 					parent.addChild(child);
 				} else if (newList != null) {
-					newList.forEach(item -> child.addChild(new Diffs(field.getDeclaringClass().getSimpleName(), null, item, NEW)));
+					newList.forEach(item -> child.addChild(new Diffs(name, null, item, NEW)));
 					parent.addChild(child);
-				} 	
-			} else { // not a list
-				Object existingValue = oldObject != null ? PropertyUtils.getSimpleProperty(oldObject, field.getName()) : null;
-				Object newValue = newObject != null ? PropertyUtils.getSimpleProperty(newObject, field.getName()) : null;
-
-				bothValuesExist = (existingValue != null) && (newValue != null);
-				isPrimitiveType = (existingValue != null) ? isPrimitive(existingValue.getClass().getName()) :
-					                                        isPrimitive(newValue.getClass().getName());
-				
+				}
+			} else { 
+				isPrimitiveType = (oldValue != null) ? isPrimitive(oldValue) : isPrimitive(newValue);
 				if (!isPrimitiveType) {
-					traverse(existingValue, newValue, parent.getNewChild(field.getName()));
-				} else if (bothValuesExist && !existingValue.equals(newValue)) {
-					parent.addChild(new Diffs(field.getName(), existingValue, newValue, MODIFIED));
-				} else if (existingValue != null && newValue == null) {
-					parent.addChild(new Diffs(field.getName(), existingValue, newValue, DELETED)); 
-				} else if (newValue != null && existingValue == null){ 
-					parent.addChild(new Diffs(field.getName(), existingValue, newValue, NEW));
-				}  
+					traverse(oldValue, newValue, parent.getNewChild(name));
+				} else {
+					compareValues(name, oldValue, newValue, parent);
+				}
 			}
 		}
 	}
 
-	private static boolean isPrimitive(String name) {
-		return name.contains("java.lang");
+	/**
+	 * Compares primitive (or BigInteger) values. 
+	 * If changes are found a new (child) Diff is added to the given parent
+	 * 
+	 * @param name
+	 * 		the name of the field
+	 * @param oldValue
+	 * 		the old value
+	 * @param newValue
+	 * 		the new value
+	 * @param parent
+	 * 		the parent diff object
+	 */
+	private static void compareValues(String name, Object oldValue, Object newValue, Diffs parent) {
+		
+		if (oldValue != null && oldValue instanceof BigInteger) {
+			oldValue = ((BigInteger) oldValue).intValue();
+		} else if (newValue != null && newValue instanceof BigInteger) {
+			newValue = ((BigInteger) newValue).intValue();
+		}
+		
+		if (oldValue != null && newValue != null && !oldValue.equals(newValue)) {
+			parent.addChild(new Diffs(name, oldValue, newValue, MODIFIED));
+		} else if (oldValue != null && newValue == null) {
+			parent.addChild(new Diffs(name, oldValue, newValue, DELETED));
+		} else if (newValue != null && oldValue == null) {
+			parent.addChild(new Diffs(name, oldValue, newValue, NEW));
+		}
+	}
+
+	private static boolean listsAreEmpty(List<?> oldList, List<?> newList) {
+		if (oldList != null && newList != null) {
+			return oldList.isEmpty() && newList.isEmpty();
+		} else if (oldList != null) {
+			return oldList.isEmpty();
+		} else {
+			return newList.isEmpty();
+		}
+	}
+
+	private static boolean isPrimitive(Object object) {
+		String name = object.getClass().getName();
+		return name.startsWith("java.lang") || object instanceof BigInteger;
+	}
+
+	/**
+	 * Returns the Map of methods for this bean.
+	 */
+	private static Map<String, Method> getMethods(Object bean) {
+
+		Map<String, Method> methods = cache.get(bean.getClass().getName());
+		if (methods == null) {
+			methods = getBeanMethods(bean); // use reflection to discover the public getters
+		}
+		return methods;
+	}
+
+	/**
+	 * Returns a list of public 'getter' methods for the given bean
+	 */
+	private static Map<String, Method> getBeanMethods(Object bean) {
+		
+		Map<String, Method> methods = new HashMap<>();
+		List<String> protectedFields = new ArrayList<>();
+		Field[] beanFields = bean.getClass().getDeclaredFields();
+		Arrays.asList(beanFields).stream()
+			.filter(field -> isProtected(field) && !field.getName().equalsIgnoreCase("uuid"))
+		    .forEach(field -> protectedFields.add(field.getName()));
+
+		try {
+			BeanInfo beanInfo = Introspector.getBeanInfo(bean.getClass(), Object.class);
+			PropertyDescriptor[] propertyDescriptors = beanInfo.getPropertyDescriptors();
+			Arrays.asList(propertyDescriptors).stream()
+				.filter(pd -> protectedFields.contains(pd.getName()))
+				.forEach(pd -> methods.put(pd.getName(), pd.getReadMethod()));
+			
+			cache.put(bean.getClass().getName(), methods); // add to the cache for later use
+		} catch (IntrospectionException e) {
+			System.out.println(e.getMessage());
+		}
+		return methods;
+	}
+	
+	private static boolean isProtected(Field field) {
+		return Modifier.isProtected(field.getModifiers());
 	}
 }
