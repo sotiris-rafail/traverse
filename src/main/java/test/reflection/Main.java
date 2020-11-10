@@ -1,8 +1,6 @@
 package test.reflection;
 
-import static test.reflection.result.Diffs.STATUS.DELETED;
-import static test.reflection.result.Diffs.STATUS.MODIFIED;
-import static test.reflection.result.Diffs.STATUS.NEW;
+import static test.reflection.result.Diffs.STATUS.*;
 
 import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
@@ -20,11 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-//import a.taxud.copis.dto.AfaType;
-//import a.taxud.copis.dto.ApplicantType;
-//import a.taxud.copis.dto.AttachmentType;
-//import a.taxud.copis.dto.AuthorisationProofType;
-//import a.taxud.copis.dto.RegisterAfa;
 import test.reflection.result.Diffs;
 import test.reflection.singleton.MethodsCache;
 
@@ -93,7 +86,7 @@ public class Main {
 					for (int i = 0; i < max; i++) {
 						compareValues(name, oldList.get(i), newList.get(i), child);
 					}
-					if (child.hasChildren()) { // Only add if there are changes
+					if (child.hasChanges()) { // Only add if there are changes
 						parent.addChild(child);
 					}
 				} else if (bothObjectsExist) {
@@ -105,6 +98,9 @@ public class Main {
 						oldValue = oldList.size() > i ? oldList.get(i) : null;
 						newValue = newList.size() > i ? newList.get(i) : null;
 						traverse(oldValue, newValue, child2);
+						if (!child2.hasChanges()) {
+							parent.removeLastChild();
+						}
 					}
 				} else if (oldValue != null) {
 					oldList.forEach(item -> child.addChild(new Diffs(name, item, null, DELETED)));
@@ -116,7 +112,11 @@ public class Main {
 			} else { 
 				isPrimitiveType = (oldValue != null) ? isPrimitive(oldValue) : isPrimitive(newValue);
 				if (!isPrimitiveType) {
-					traverse(oldValue, newValue, parent.getNewChild(name));
+					Diffs newChild = parent.getNewChild(name);
+					traverse(oldValue, newValue, newChild);
+					if (!newChild.hasChanges()) {
+						parent.removeLastChild();
+					}
 				} else {
 					compareValues(name, oldValue, newValue, parent);
 				}
@@ -139,19 +139,22 @@ public class Main {
 	 */
 	private static void compareValues(String name, Object oldValue, Object newValue, Diffs parent) {
 		
-		if (oldValue != null && oldValue instanceof BigInteger) {
+		if (oldValue != null && oldValue instanceof BigInteger)
 			oldValue = ((BigInteger) oldValue).intValue();
-		} else if (newValue != null && newValue instanceof BigInteger) {
+		if (newValue != null && newValue instanceof BigInteger)
 			newValue = ((BigInteger) newValue).intValue();
-		}
-		
-		if (oldValue != null && newValue != null && !oldValue.equals(newValue)) {
-			parent.addChild(new Diffs(name, oldValue, newValue, MODIFIED));
+
+		if (oldValue != null && newValue != null) {
+			if (oldValue.equals(newValue)) {
+				parent.addChild(new Diffs(name, oldValue, newValue, NO_CHANGE));
+			} else {
+				parent.addChild(new Diffs(name, oldValue, newValue, MODIFIED));
+			}
 		} else if (oldValue != null && newValue == null) {
 			parent.addChild(new Diffs(name, oldValue, newValue, DELETED));
 		} else if (newValue != null && oldValue == null) {
 			parent.addChild(new Diffs(name, oldValue, newValue, NEW));
-		}
+		} 
 	}
 
 	private static boolean listsAreEmpty(List<?> oldList, List<?> newList) {
@@ -176,7 +179,7 @@ public class Main {
 
 		Map<String, Method> methods = cache.get(bean.getClass().getName());
 		if (methods == null) {
-			methods = getBeanMethods(bean); // use reflection to discover the public getters
+			methods = getBeanMethods(bean);
 		}
 		return methods;
 	}
