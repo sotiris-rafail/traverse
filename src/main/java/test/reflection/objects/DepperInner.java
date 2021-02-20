@@ -7,10 +7,10 @@ public class DepperInner {
 	private boolean depperPublished;
 
 	public DepperInner(String depper, int muchDepper, boolean depperPublished) {
-	this.depper = depper;
-	this.muchDepper = muchDepper;
-	this.depperPublished = depperPublished;
-    }
+		this.depper = depper;
+		this.muchDepper = muchDepper;
+		this.depperPublished = depperPublished;
+	}
 
 	public String getDepper() {
 		return depper;
